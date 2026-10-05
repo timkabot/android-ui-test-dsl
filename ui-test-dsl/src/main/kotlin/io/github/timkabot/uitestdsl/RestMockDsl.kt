@@ -1,4 +1,4 @@
-package example.uitestdsl.testing
+package io.github.timkabot.uitestdsl
 
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse

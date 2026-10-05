@@ -2,7 +2,7 @@
 
 The screen depends on small interfaces. Normal app startup registers offline implementations, while each test chooses the implementations needed for its scenario.
 
-`makeUiTestRule` accepts `Module.() -> Unit`, allowing ordinary Koin `factory` and `single` declarations alongside the helper DSLs. The configuration runs inside the outer rule, so constructors do not start servers or allocate Apollo clients.
+The reusable `UiTestEnvironment` lives in `ui-test-dsl`. Its `dependencies` block accepts `Module.() -> Unit`, allowing ordinary Koin `factory` and `single` declarations. Resources are created inside rule evaluation. The sample `BaseUiTest` provides `makeUiTestRule` and app-specific bindings on top of that SDK.
 
 ```mermaid
 sequenceDiagram
@@ -25,7 +25,7 @@ Cleanup attempts every registered resource even when one cleanup operation fails
 
 `RestMockDsl` stores request rules and supplies a MockWebServer dispatcher. A rule matches the HTTP method, exact path and optional body fragment. The request body is cloned before inspection, preserving it for other matchers and diagnostics.
 
-`restMockServer` starts the server, builds Retrofit against its loopback URL and overrides `AddPromocode` with `RestAddPromocode`. This implementation sends the entered code, parses the JSON response and returns a domain result to the screen.
+The SDK `restMockServer` starts and returns the server. The sample adapter builds Retrofit against its loopback URL and overrides `AddPromocode` with `RestAddPromocode`. This implementation sends the entered code, parses the JSON response and returns a domain result to the screen.
 
 Cleartext traffic is enabled only in the debug manifest for local HTTP testing. The DSL deliberately leaves advanced routing, query matching and response delays out of scope.
 
@@ -39,7 +39,7 @@ The schema and operation live in `app/src/main/graphql`; Apollo generates the Ko
 
 Direct `factory<AddPromocode>` overrides are appropriate when the scenario only needs a known operation result. `ExpiredPromoUiTest` demonstrates a feature-level wrapper for shared setup.
 
-`mockFeatureFlags` registers an immutable snapshot of Boolean settings. The Activity resolves these settings before its first composition. This example does not implement dynamic flag updates while the screen is open.
+The SDK `mockFeatureFlags` builds an immutable snapshot of Boolean settings; the app adapter registers it using the app’s flag interface. The Activity resolves these settings before its first composition. This example does not implement dynamic flag updates while the screen is open.
 
 ## Assertions
 

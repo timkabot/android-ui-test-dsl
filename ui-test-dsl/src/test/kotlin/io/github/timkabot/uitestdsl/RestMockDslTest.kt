@@ -1,4 +1,4 @@
-package example.uitestdsl.testing
+package io.github.timkabot.uitestdsl
 
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient

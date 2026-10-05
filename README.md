@@ -1,96 +1,122 @@
 # Android UI Test DSL
 
-A small, standalone Android app demonstrating how to describe UI test environments with a Kotlin DSL. No backend account or external service is required.
-
-The sample covers REST responses with MockWebServer and Retrofit, typed GraphQL responses with Apollo, dependency overrides with Koin, and feature flags. A Page Object keeps actions and assertions separate from environment setup.
-
-## A complete scenario
+A Kotlin/JUnit4 library for preparing UI test environments: Koin overrides, local REST responses, typed Apollo responses and Boolean feature flags. An Android Compose sample shows how to connect it to an app.
 
 ```kotlin
-class RestPromoTest : BaseUiTest() {
-    @get:Rule val rule = makeUiTestRule {
-        restMockServer {
-            POST("/promocodes") returns 200 withBodyContaining "\"code\":\"EXPIRED\"" withJson
-                """{"accepted":false,"message":"Срок действия промокода истёк"}"""
-        }
+@get:Rule
+val rule = makeUiTestRule {
+    factory<AddPromocode> {
+        AddPromocode { PromoResult.Rejected("Срок действия промокода истёк") }
     }
+}
 
-    @Test fun restErrorAppearsAtTheInput() {
-        PromoScreen(composeTestRule).apply {
-            submit("EXPIRED")
-            assertResult("Срок действия промокода истёк")
-        }
+@Test
+fun expiredPromoShowsError() {
+    PromoScreen(composeTestRule).apply {
+        submit("EXPIRED")
+        assertResult("Срок действия промокода истёк")
     }
 }
 ```
 
-The app sends a real local HTTP request. The prepared business error is parsed and displayed by the UI. HTTP 200 represents a successful exchange; `accepted: false` represents a rejected promo code.
+This scenario uses the sample's [BaseUiTest adapter](app/src/androidTest/java/example/uitestdsl/testing/BaseUiTest.kt) and [Page Object](app/src/androidTest/java/example/uitestdsl/testing/PromoScreen.kt). The SDK manages resource lifetime; the adapter connects the SDK to your Activity and app interfaces.
 
-## Run it
+## Add it to your project
 
-Open the project in Android Studio. Requirements:
+Version **0.1.0**, [MIT license](LICENSE). Requires JDK 17 and Kotlin 2.3.21 or a compatible compiler. Tested with Koin 4.2.1, OkHttp 5.3.0 and Apollo Kotlin 4.4.3. This initial SDK includes these integrations in one artifact.
 
-- JDK 17 (or a Gradle runtime with a JDK 17 toolchain available).
-- Android SDK Platform 36.
-- An Android device or emulator on API 26 or later for UI tests.
+Download `ui-test-dsl-0.1.0-maven.zip` from [Releases](https://github.com/timkabot/android-ui-test-dsl/releases/tag/v0.1.0) and extract it into `vendor/ui-test-dsl` in your project. The extracted directory must directly contain `io/`.
 
-Set `ANDROID_HOME`, or create an untracked `local.properties` with `sdk.dir=/path/to/Android/sdk`.
+In your `settings.gradle.kts`, add the extracted Maven repository alongside your existing repositories:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        maven {
+            url = uri("vendor/ui-test-dsl")
+            content { includeGroup("io.github.timkabot") }
+        }
+        google()
+        mavenCentral()
+    }
+}
+```
+
+In your app's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    androidTestImplementation("io.github.timkabot:ui-test-dsl:0.1.0")
+}
+```
+
+The ZIP contains the library, sources and Maven dependency metadata. Gradle downloads transitive dependencies from Maven Central. Add it to `androidTestImplementation`, not your production dependencies. This version is distributed through GitHub Releases; it is not published to Maven Central or JitPack.
+
+Alternatively, build from source and install into your local Maven cache (no Android SDK required for the library):
 
 ```sh
-./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest
+git clone --branch v0.1.0 https://github.com/timkabot/android-ui-test-dsl.git
+cd android-ui-test-dsl
+./gradlew -PsdkOnly :ui-test-dsl:publishToMavenLocal
+```
+
+Then use `mavenLocal { content { includeGroup("io.github.timkabot") } }` instead of the `vendor` repository. Other developers and CI also need to install the artifact or use the ZIP.
+
+## Connect it to an Activity
+
+Create an adapter under your app's `src/androidTest`. Replace `MainActivity` and `appModules()` with your Activity and a function returning **all** required Koin modules:
+
+```kotlin
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import io.github.timkabot.uitestdsl.UiTestEnvironment
+import org.junit.rules.TestRule
+import org.koin.core.module.Module
+
+abstract class BaseUiTest {
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
+
+    fun makeUiTestRule(configure: Module.() -> Unit): TestRule =
+        UiTestEnvironment(defaultModules = { appModules() }) {
+            dependencies(configure)
+        }.around(composeTestRule)
+}
+```
+
+Your project must already have its Android instrumentation runner and Compose test dependencies configured. `UiTestEnvironment` is an ordinary JUnit4 rule, so you can also wrap an `ActivityScenarioRule` for View-based tests.
+
+The outer environment rule configures Koin before the inner rule launches the Activity, then closes resources after the Activity finishes. It owns and replaces the **process-global Koin container**. Do not run these rules concurrently in one process. It does not restore the application's old container after a test.
+
+If your modules need Android context, pass `configureKoin = { androidContext(context) }` using your instrumentation target context and the Koin Android extension. `Application.onCreate` runs before test rules; dependencies resolved there cannot be replaced retroactively. Use a custom test Application/runner if startup must be controlled. [Integration guide](docs/integration.md) covers REST, Apollo and flags.
+
+## Run the sample
+
+Requires Android SDK Platform 36 and an emulator/device with API 26 or later. Set `ANDROID_HOME` or an untracked `local.properties`.
+
+```sh
+./gradlew :ui-test-dsl:test :app:assembleDebug :app:assembleDebugAndroidTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-The second command requires a running device. Dependencies are downloaded from public repositories on the first build. Direct dependency versions and the Gradle distribution checksum are pinned.
+The sample's four tests cover Koin, REST, GraphQL and a disabled feature flag. Normal app use has offline defaults: enter `EXPIRED` for a rejection, any other nonblank code for success. UI text is in Russian.
 
-Run the app normally to try the offline defaults: enter `EXPIRED` to see a rejection; any other nonblank code succeeds. The products button loads a sample item. UI text is in Russian. Network implementations are selected by tests, so normal use does not contact a server.
+## Source map
 
-## Where to start
-
-| Source | Purpose |
+| Location | Purpose |
 | --- | --- |
-| [Dependencies.kt](app/src/main/java/example/uitestdsl/Dependencies.kt) | Contracts, offline defaults, REST and GraphQL implementations |
-| [MainActivity.kt](app/src/main/java/example/uitestdsl/MainActivity.kt) | Compose screen that calls the dependencies |
-| [RestMockDsl.kt](app/src/sharedTest/kotlin/example/uitestdsl/testing/RestMockDsl.kt) | Request matching and response builder |
-| [BaseUiTest.kt](app/src/androidTest/java/example/uitestdsl/testing/BaseUiTest.kt) | Rule ordering, Koin overrides, flags, resource cleanup |
-| [PromoScreen.kt](app/src/androidTest/java/example/uitestdsl/testing/PromoScreen.kt) | Page Object and assertions with condition-based waits |
-| [PromoTests.kt](app/src/androidTest/java/example/uitestdsl/PromoTests.kt) | Four UI tests and a feature-level base class |
-| [RestMockDslTest.kt](app/src/test/java/example/uitestdsl/testing/RestMockDslTest.kt) | JVM tests using actual local HTTP requests |
+| [ui-test-dsl](ui-test-dsl/src/main/kotlin/io/github/timkabot/uitestdsl) | Reusable JUnit4 rule, request DSL and flag values |
+| [BaseUiTest](app/src/androidTest/java/example/uitestdsl/testing/BaseUiTest.kt) | App-specific adapter using the SDK |
+| [PromoTests](app/src/androidTest/java/example/uitestdsl/PromoTests.kt) | Complete scenarios and feature-level wrapper |
+| [consumer-smoke](consumer-smoke) | Separate build consuming the published Maven artifact |
+| [Integration guide](docs/integration.md) | Setup recipes and lifecycle constraints |
+| [Implementation notes](docs/implementation.md) | Matching rules, cleanup and test coverage boundaries |
 
-## Choose the boundary of the test
+## Validate the published artifact
 
-```mermaid
-flowchart TD
-    UI[Compose screen] --> Contract[Dependency contract]
-    Contract -->|Koin override| Fake[Prepared result]
-    Contract -->|REST implementation| Retrofit[Retrofit and JSON parsing]
-    Retrofit --> MockWebServer[Local MockWebServer]
-    Contract -->|GraphQL implementation| Apollo[Apollo client]
-    Apollo --> Transport[MapTestNetworkTransport]
+```sh
+./gradlew -PsdkOnly :ui-test-dsl:test :ui-test-dsl:publishToMavenLocal :ui-test-dsl:distributionZip
+./gradlew -p consumer-smoke test
 ```
 
-These are alternative dependency implementations, not successive stages of one request.
+The consumer build resolves the published artifact by Maven coordinates, without a project dependency on the sample or SDK source. Release bundles are written to `ui-test-dsl/build/distributions/`.
 
-- `KoinPromoTest` checks the UI response to an injected result, without networking.
-- `RestPromoTest` includes Retrofit, HTTP and JSON parsing.
-- `GraphQlProductsTest` supplies typed Apollo data; it does not test HTTP or JSON decoding.
-- `DisabledPromoTest` checks that disabling a flag removes the input and submit button.
-
-## Scope and limitations
-
-REST matching uses the exact path, including the query string. The first matching rule wins; unmatched requests return 404. After `withJsonSequence` is exhausted, responses use the body configured by `withJson` (empty by default).
-
-Each test creates a new environment before launching the Activity. The Activity closes before Koin and network resources are released. Koin uses the process-global container: parallel tests in one process are not supported. The app has no persistent state to reset. Flags are Boolean values in this sample.
-
-This is a teaching example, not a production testing framework. [Implementation notes](docs/implementation.md) explain the lifecycle and tradeoffs.
-
-## Validation
-
-Verified on October 5, 2026:
-
-- App and instrumentation APKs built successfully.
-- 2 JVM tests passed.
-- 4 UI tests passed on an Android 15 / API 35 arm64 emulator.
-- Android Lint reported no errors; warnings include newer dependency versions and a missing application icon.
-
-This is a single-device verification, not a compatibility matrix. Build outputs, local SDK paths and emulator data are excluded from version control.
+Verified on October 5, 2026: 9 SDK JVM tests, all 4 sample UI tests on Android 15 / API 35 arm64, and the independent consumer test using both Maven Local and the extracted release ZIP. Both APKs build; Android Lint reports no errors. This is a single-device check, not a device compatibility matrix.
