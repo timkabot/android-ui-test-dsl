@@ -144,4 +144,4 @@ The consumer build resolves the published artifact by Maven coordinates, without
 
 Verified on October 5, 2026: 9 SDK JVM tests, all 4 sample UI tests on Android 15 / API 35 arm64, and the independent consumer test using both Maven Local and the extracted release ZIP. Both APKs build; Android Lint reports no errors. This is a single-device check, not a device compatibility matrix.
 
-Verified on November 19, 2026: 9 SDK JVM tests and 2 standalone consumer tests passed against the extracted release ZIP, including named dependency replacement. Android UI tests were not rerun in this check.
+Verified on November 19, 2026: 9 SDK JVM tests and 2 standalone consumer tests passed against the release bundle. After publishing 0.1.1, both consumer tests also passed with Maven Central as the only dependency repository (`-PcentralOnly`), including named dependency replacement. Android UI tests were not rerun in this check.
