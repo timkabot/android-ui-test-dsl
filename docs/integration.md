@@ -2,6 +2,14 @@
 
 Use `io.github.timkabot.uitestdsl.*` in instrumentation tests. The SDK has no dependency on the sample Activity, its domain interfaces, Retrofit, or Compose. It provides resources; your adapter binds those resources to your app.
 
+## Start with one dependency override
+
+First follow the [installation and Activity adapter](../README.md#connect-it-to-an-activity) in the README. The adapter must provide fresh modules for every dependency the screen needs. In a test extending that adapter, use `makeUiTestRule { factory<YourInterface> { yourFake } }`, then perform the screen action and assert its result.
+
+`YourInterface` and `yourFake` are placeholders for your app's contract and implementation. A complete working example is [KoinPromoTest and its shared wrapper](../app/src/androidTest/java/example/uitestdsl/PromoTests.kt). Run the test on a device before adding REST or GraphQL; this checks that the Activity receives the override.
+
+The examples below run **inside `UiTestEnvironment`**, whose methods return SDK resources. The sample's `makeUiTestRule` instead receives a Koin `Module`; its similarly named helpers also bind the returned resources to app interfaces. Those helpers live in [the sample adapter](../app/src/androidTest/java/example/uitestdsl/testing/BaseUiTest.kt), not in the SDK.
+
 ## REST
 
 Create the server during environment evaluation, then bind your real client to its URL. The following example uses the sample app's contracts; substitute your own API and repository:
@@ -56,6 +64,14 @@ dependencies {
 ```
 
 `AppFeatureFlags` represents your app's interface; adapt the snapshot to it. Values are Boolean, unknown names return false, and snapshots do not change after construction. No production flag service is required by the SDK. Runtime updates and experiments are outside this version's scope.
+
+## Dependency overrides and qualifiers
+
+Use the same type and qualifier as the application binding. An unqualified replacement does not replace a qualified binding. `single` and `factory` keep their normal Koin lifetime semantics within the test container.
+
+See the [standalone dependency override test](../consumer-smoke/src/test/kotlin/DependencyOverrideTest.kt) for a complete example with default modules, a named override and a consumer that resolves the replacement. No sample-app classes are required.
+
+The SDK manages Koin directly. Replacing Koin itself with Hilt or Dagger is not supported by the current API.
 
 ## Koin lifecycle
 
