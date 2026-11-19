@@ -4,7 +4,7 @@ dependencyResolutionManagement {
         val bundle = providers.gradleProperty("sdkRepository").orNull
         if (bundle != null) {
             maven { url = uri(bundle); content { includeGroup("io.github.timkabot") } }
-        } else {
+        } else if (!providers.gradleProperty("centralOnly").isPresent) {
             mavenLocal { content { includeGroup("io.github.timkabot") } }
         }
         mavenCentral()

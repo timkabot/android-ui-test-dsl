@@ -2,10 +2,12 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     `java-library`
     `maven-publish`
+    signing
+    id("org.jetbrains.dokka") version "2.2.0"
 }
 
 group = "io.github.timkabot"
-version = "0.1.0"
+version = "0.1.1"
 kotlin { jvmToolchain(17) }
 java { withSourcesJar() }
 
@@ -17,15 +19,33 @@ dependencies {
     api("com.apollographql.apollo:apollo-testing-support:4.4.3")
 }
 
+val apiDocsJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+    from(tasks.named("dokkaGeneratePublicationHtml"))
+}
+
 publishing {
     publications {
         create<MavenPublication>("sdk") {
             from(components["java"])
+            artifact(apiDocsJar)
             pom {
                 licenses { license { name.set("MIT"); url.set("https://opensource.org/license/mit/") } }
                 name.set("Android UI Test DSL")
                 description.set("JUnit4 test environments with Koin overrides, REST, Apollo and feature flags")
                 url.set("https://github.com/timkabot/android-ui-test-dsl")
+                developers {
+                    developer {
+                        id.set("timkabot")
+                        name.set("Timur Borgalinov")
+                        url.set("https://github.com/timkabot")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/timkabot/android-ui-test-dsl")
+                    connection.set("scm:git:https://github.com/timkabot/android-ui-test-dsl.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/timkabot/android-ui-test-dsl.git")
+                }
             }
         }
     }
@@ -40,3 +60,25 @@ tasks.register<Zip>("distributionZip") {
 }
 
 tasks.withType<Jar>().configureEach { from(rootProject.file("LICENSE")) { into("META-INF") } }
+
+// Opt in only for release builds; normal tests do not require a signing key.
+if (providers.gradleProperty("signRelease").isPresent) {
+    signing {
+        useGpgCmd()
+        sign(publishing.publications["sdk"])
+    }
+}
+
+tasks.register<Zip>("centralBundle") {
+    dependsOn("publishSdkPublicationToBundleRepository")
+    from(layout.buildDirectory.dir("repository")) {
+        include("io/github/timkabot/ui-test-dsl/${project.version}/**")
+    }
+    archiveFileName.set("ui-test-dsl-${project.version}-central.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    doFirst {
+        check(providers.gradleProperty("signRelease").isPresent) {
+            "Central bundles must be signed: use -PsignRelease and configure your GPG key."
+        }
+    }
+}

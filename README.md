@@ -45,44 +45,17 @@ For the first integration, add the dependency, create the Activity adapter below
 
 ## Add it to your project
 
-Version **0.1.0**, [MIT license](LICENSE). Requires JDK 17 and Kotlin 2.3.21 or a compatible compiler. Tested with Koin 4.2.1, OkHttp 5.3.0 and Apollo Kotlin 4.4.3. This initial SDK includes these integrations in one artifact.
+Version **0.1.1**, [MIT license](LICENSE). Requires JDK 17 and Kotlin 2.3.21 or a compatible compiler. Tested with Koin 4.2.1, OkHttp 5.3.0 and Apollo Kotlin 4.4.3.
 
-Download `ui-test-dsl-0.1.0-maven.zip` from [Releases](https://github.com/timkabot/android-ui-test-dsl/releases/tag/v0.1.0) and extract it into `vendor/ui-test-dsl` in your project. The extracted directory must directly contain `io/`.
-
-In your `settings.gradle.kts`, add the extracted Maven repository alongside your existing repositories:
-
-```kotlin
-dependencyResolutionManagement {
-    repositories {
-        maven {
-            url = uri("vendor/ui-test-dsl")
-            content { includeGroup("io.github.timkabot") }
-        }
-        google()
-        mavenCentral()
-    }
-}
-```
-
-In your app's `build.gradle.kts`:
+With `mavenCentral()` in your project's dependency repositories, add this to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    androidTestImplementation("io.github.timkabot:ui-test-dsl:0.1.0")
+    androidTestImplementation("io.github.timkabot:ui-test-dsl:0.1.1")
 }
 ```
 
-The ZIP contains the library, sources and Maven dependency metadata. Gradle downloads transitive dependencies from Maven Central. Add it to `androidTestImplementation`, not your production dependencies. This version is distributed through GitHub Releases; it is not published to Maven Central or JitPack.
-
-Alternatively, build from source and install into your local Maven cache (no Android SDK required for the library):
-
-```sh
-git clone --branch v0.1.0 https://github.com/timkabot/android-ui-test-dsl.git
-cd android-ui-test-dsl
-./gradlew -PsdkOnly :ui-test-dsl:publishToMavenLocal
-```
-
-Then use `mavenLocal { content { includeGroup("io.github.timkabot") } }` instead of the `vendor` repository. Other developers and CI also need to install the artifact or use the ZIP.
+Next, connect the SDK to your Activity using the adapter below, then override one dependency in your first test. REST and GraphQL setup can wait until you need them.
 
 ## Connect it to an Activity
 
@@ -153,6 +126,14 @@ The sample's four tests cover Koin, REST, GraphQL and a disabled feature flag. N
 | [Implementation notes](docs/implementation.md) | Matching rules, cleanup and test coverage boundaries |
 
 ## Validate the published artifact
+
+Test the Maven Central release without Maven Local or a bundled repository:
+
+```sh
+./gradlew -p consumer-smoke -PcentralOnly test --refresh-dependencies
+```
+
+To validate local SDK changes before publishing:
 
 ```sh
 ./gradlew -PsdkOnly :ui-test-dsl:test :ui-test-dsl:publishToMavenLocal :ui-test-dsl:distributionZip
